@@ -2,8 +2,8 @@
 SETTINGS = {
 #	'METHOD': 'classify',
 	'METHOD': 'regress',
-#	'EST': 'gbm',
-	'EST': 'rf',
+	'EST': 'gbm',
+#	'EST': 'rf',
 	'GRIDSEARCH': False,
 	'IMPORTANCES': True,
 #	'IMPORTANCES': False,
@@ -13,14 +13,19 @@ params = {
 	# Random Forest
 	'rf': {
 		'max_features': 'auto', # 3,
-#			'n_estimators': 40,
-# 			'min_samples_split': 1,
-# 			'min_samples_leaf': 1,
+#		'n_estimators': 40, # answered/interest
+		'n_estimators': 60, # views
+#		'min_samples_split': 1,
+#		'min_samples_leaf': 1,
 	},
 	# GBM
 	'gbm': {
-		'n_estimators': 350,
-		'learning_rate': 1e-03,
+# 		'n_estimators': 350, # for answered
+#		'learning_rate': 1e-03, # for answered
+#		'n_estimators': 500, # for interest
+#		'learning_rate': 2e-02, # for interest
+		'n_estimators': 500, # for views
+		'learning_rate': 3e-02, # for views
 		'max_depth': 3,
 	}
 }
@@ -129,12 +134,19 @@ def gen_features(questionset, givefeat=False):
 		#f['topic_ttl_followers_top5'] = sum(tfollowers[:5])
 		#topics_with_1500_followers = sum([1 for tf in tfollowers if tf > 1500])
 		#f['topics_with_1500_followers'] = topics_with_1500_followers
-# 		topics_with_2000_followers = sum([1 for tf in tfollowers if tf > 2000])
-# 		f['topics_with_2000_followers'] = topics_with_2000_followers
+ 		topics_with_2000_followers = sum([1 for tf in tfollowers if tf > 2000])
+ 		f['topics_with_2000_followers'] = topics_with_2000_followers
  		#topics_with_2500_followers = sum([1 for tf in tfollowers if tf > 2500])
  		#f['topics_with_2500_followers'] = topics_with_2500_followers
 		### Context-topic based ###
-		f['pritopic_followers'] = qn['context_topic']['followers'] if qn['context_topic'] is not None else 0
+		if qn['context_topic'] is not None:
+			f['pritopic_followers'] = qn['context_topic']['followers']
+			f['pritopic_name_len'] = len(qn['context_topic']['name'])
+			f['pritopic_name_tokencnt'] = len(tokenize(qn['context_topic']['name']))
+		else:
+			f['pritopic_followers'] = 0
+			f['pritopic_name_len'] = 0
+			f['pritopic_name_tokencnt'] = 0
 
 		#### Question Text based ####
 		question_text_l = qn['question_text'].lower()
@@ -159,7 +171,8 @@ def classify(clf, X_test):
 	pred = clf.predict(X_test)
 	if SETTINGS['METHOD'] == 'classify':
 		return [bool(p == 1) for p in pred]
-	return pred
+	else:
+		return [max(p, 0.) for p in pred]
 
 def grid(clf, params_grid, X, Y, folds, **kwargs):
 	clf_grid = GridSearchCV(clf, params_grid, cv=folds, pre_dispatch='2*n_jobs', verbose=1, refit=True, **kwargs)
