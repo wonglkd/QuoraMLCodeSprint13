@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-# QUESTION = 'answered'
+QUESTION = 'answered'
 #QUESTION = 'interest'
-QUESTION = 'views'
+# QUESTION = 'views'
 QN_PARAMS = {
 	'answered': {
 		'METHOD':				'classify',
@@ -9,15 +9,8 @@ QN_PARAMS = {
 		'max_features_rf':		'auto',
 		'n_estimators_gbm':		350,
 		'learning_rate_gbm':	5e-03,
-		'max_depth_gbm':		3
-	},
-	'interest': {
-		'METHOD':				'regress',
-		'n_estimators_rf':		40,
-		'max_features_rf':		'auto',
-		'n_estimators_gbm':		500,
-		'learning_rate_gbm':	5e-02,
-		'max_depth_gbm':		4,
+		'max_depth_gbm':		3,
+		'features_select':		15,
 		'FEATURES':				[
   									'anon',
 									'topic_cnt',
@@ -33,16 +26,51 @@ QN_PARAMS = {
 # 									'pritopic_exists',
  									'pritopic_followers',
 									'pritopic_name_len',
+# 									'pritopic_name_tokencnt',
 # 									'pritopic',
 # 									'topic_highest',
  									'topic_limited',
-# 									'pritopic_name_tokencnt',
 									'qn_char_len',
 # 									'qn_token_first', # pushes it up to 0.464 but high running time
  									'qn_word_*',
-# 									'qn_token_cnt',
-# 									'qn_token_avglen',
-# 									'qn_token_allcaps'
+#  									'qn_token_cnt',
+#  									'qn_token_avglen',
+#  									'qn_token_allcaps'
+								]
+	},
+	'interest': {
+		'METHOD':				'regress',
+		'n_estimators_rf':		40,
+		'max_features_rf':		'auto',
+		'n_estimators_gbm':		250,
+		'learning_rate_gbm':	5e-02,
+		'max_depth_gbm':		4,
+		'features_select':		15,
+		'FEATURES':				[
+  									'anon',
+									'topic_cnt',
+									'topic_name_avglen',
+# 									'topic_name_maxlen',
+# 									'topic_name_avgtokens',
+									'topic_ttl_followers',
+# 									'topic_ttl_followers_300',
+#									'topic_ttl_followers_top3',
+#									'topic_ttl_followers_top5',
+#									'topics_with_1500_followers',
+ 									'topics_with_2000_followers',
+# 									'pritopic_exists',
+ 									'pritopic_followers',
+									'pritopic_name_len',
+# 									'pritopic_name_tokencnt',
+# 									'pritopic',
+# 									'topic_highest',
+# 									'topic_limited',
+									'qn_char_len',
+# 									'qn_token_first', # pushes it up to 0.464 but high running time
+ 									'qn_word_*',
+#  									'qn_token_cnt',
+#  									'qn_token_avglen',
+#  									'qn_token_allcaps'
 								]
 	},
 	'views': {
@@ -80,15 +108,16 @@ QN_PARAMS = {
 		'n_estimators_gbm':		270,
 # 		'n_estimators_gbm':		310,
 		'learning_rate_gbm':	5e-02,
-		'max_depth_gbm':		5
+		'max_depth_gbm':		5,
+		'features_select':		15,
 	}
 }
 SETTINGS = {
 	'METHOD': QN_PARAMS[QUESTION]['METHOD'],
-	'EST': 'gbm',
+#	'EST': 'gbm',
+   	'EST': 'rf',
 # 	'EST': 'ridge',
 #	'EST': 'SVR',
-#   	'EST': 'rf',
 #	'EST': 'SGD',
 # 	'EST': 'lasso',
 #	'EST': 'elastic',
@@ -302,7 +331,7 @@ class CustomFeat:
 # 		return [dv.transform(X) for X in args]
 
 	def get_feature_names(self):
-		if use_dv:
+		if self.use_dv:
 			return self.dv.get_feature_names()
 		else:
 			return QN_PARAMS[QUESTION]['FEATURES']
@@ -363,16 +392,16 @@ class CustomFeat:
 			f['qn_char_len'] = len(question_text_l)
 			#f['qn_text_delete'] = int('delete' in question_text_l)
 			### Word/Token-based ###
-# 			tokens = tokenize(qn['question_text'])
-# 			tokens_l = [tok.lower() for tok in tokens]
+ 			tokens = tokenize(qn['question_text'])
+ 			tokens_l = [tok.lower() for tok in tokens]
 # 			f['qn_token_first'] = tokens_l[0] if len(tokens) else 'none'
-# 			f['qn_token_cnt'] = len(tokens)
+ 			f['qn_token_cnt'] = len(tokens)
 			for word in self.words_to_check:
  				f['qn_word_'+word] = question_text_l.count(word)
 #  				f['qn_word_'+word] = tokens_l.count(word)
 # 				
-# 			f['qn_token_avglen'] = sum(len(tk) for tk in tokens) / float(len(tokens)) if len(tokens) else 0
-# 			f['qn_token_allcaps'] = sum(1 for tk in tokens if len(tk) > 2 and tk == tk.upper())
+ 			f['qn_token_avglen'] = sum(len(tk) for tk in tokens) / float(len(tokens)) if len(tokens) else 0
+ 			f['qn_token_allcaps'] = sum(1 for tk in tokens if len(tk) > 2 and tk == tk.upper())
 # 			#f['qn_token_allcaps_per'] = sum(1 for tk in tokens if len(tk) > 1 and tk == tk.upper())/float(len(tokens))
 			
 			#X.append([f[qt] for qt in QN_PARAMS[QUESTION]['FEATURES']])
@@ -417,7 +446,7 @@ def get_clf(X_train, Y_train, feat_indices=None, clf_used='rf', grid_search=Fals
  			'compute_importances': SETTINGS['IMPORTANCES']
 		},
 		'gbm': {
-			'random_state': 100,
+			'random_state': 101,
 			'min_samples_split': 1,
 			'min_samples_leaf': 2,
 			'subsample': 0.5,
@@ -445,12 +474,17 @@ def get_clf(X_train, Y_train, feat_indices=None, clf_used='rf', grid_search=Fals
 	else:
 	 	print_err("training start")
  		clf.fit(X_train, Y_train)
- 		if SETTINGS['IMPORTANCES'] and clf_used in ['rf', 'lasso']:
-			importances = clf.feature_importances_ if clf_used == 'rf' else clf.coef_
-			indices = np.argsort(importances)[::-1]
-			print_err("Feature ranking:")
-			for f, indf in enumerate(indices):
-				print_err("{0}. feature {1}: {2} ({3})".format(f + 1, indf, feat_indices[indf].encode("utf-8"), importances[indf]))
+ 		if SETTINGS['IMPORTANCES']:
+ 			if clf_used in ['rf', 'lasso']:
+				importances = clf.feature_importances_ if clf_used == 'rf' else clf.coef_
+				indices = np.argsort(importances)[::-1]
+				print_err("Feature ranking:")
+				for f, indf in enumerate(indices):
+					print_err("{0}. feature {1}: {2} ({3})".format(f + 1, indf, feat_indices[indf].encode("utf-8"), importances[indf]))
+			else:
+				for i, fk in enumerate(feat_indices):
+					print_err("{0}.".format(i+1), fk)
+
 	 	print_err("trained!")
 		return clf
 
@@ -476,11 +510,13 @@ def main():
 # 	(X_train, X_test), featkeys = dictVec(X_train, X_test)
 	
 #  	tfidf_word = TfidfVectorizer(preprocessor=lambda x: x['question_text'].lower(), ngram_range=(1, 3), analyzer="word", binary=False, min_df=3)
- 	tfidf_word = TfidfVectorizer(preprocessor=exa, ngram_range=(1, 3), analyzer="word", binary=False, min_df=3)
+ 	tfidf_word = TfidfVectorizer(preprocessor=exa, ngram_range=(1, 3), analyzer="word", binary=False, min_df=0.05)
 #  	feat_select = SelectPercentile(score_func=f_regression_, percentile=0.15)
- 	feat_select = SelectKBest(score_func=f_regression_, k=15)
+ 	feat_select = SelectKBest(score_func=f_regression_, k=QN_PARAMS[QUESTION]['features_select'])
  	cf = CustomFeat()
  	feat = FeatureUnion([('word_counts', tfidf_word), ('custom', cf)])
+# 	feat = FeatureUnion([('custom', cf)])
+# 	feat = FeatureUnion([('word_counts', tfidf_word)])
  # 	est = ESTIMATOR(**params[SETTINGS['EST']])
   	w_model = Pipeline([('funion', feat), ('feat_select', feat_select)]) #, ('est', est)]
 #   	w_X_train = tfidf_word.fit_transform(qtrain)
@@ -496,10 +532,8 @@ def main():
 # 	print_err(feat_select.get_support(indices=True))
 	X_train = w_model.fit_transform(qtrain, Y_train).toarray()
 	X_test = w_model.transform(qtest).toarray()
-#    	featkeys = np.asarray(feat.get_feature_names())[feat_select.get_support(indices=True)]
-	featkeys = []
-#    	for i, fk in enumerate(featkeys):
-#    		print_err("{0}.".format(i+1), fk)
+   	featkeys = np.asarray(feat.get_feature_names())[feat_select.get_support(indices=True)]
+#	featkeys = []
 # 	Y_test = classify(w_model, qtest)
 # 	print_err(est.coef_.nonzero())
 
